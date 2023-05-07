@@ -11,9 +11,11 @@ datasource db {
 }
 
 model User {
-  id       String @id @default(uuid())
-  username String @unique
-  password String
+  id         String   @id @default(uuid())
+  username   String   @unique
+  password   String
+  created_at DateTime @default(now())
+  updated_at DateTime
 }
 
 model Item {
@@ -21,5 +23,10 @@ model Item {
   name       String
   stock      Int
   created_at DateTime @default(now())
-  updated_at DateTime @default(now())
+  updated_at DateTime
+}
+
+model RefreshToken {
+  id    Int    @id @default(autoincrement())
+  token String @unique
 }
