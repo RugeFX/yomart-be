@@ -3,7 +3,7 @@ import { PrismaClient, Prisma, User as UserP } from "@prisma/client";
 import { Router } from "express";
 import { ZodError } from "zod";
 import { JsonWebTokenError, sign, verify } from "jsonwebtoken";
-import { validateLogin, validateUser } from "../validation";
+import { validateUser } from "../validation";
 import { comparePassword, cryptPassword } from "../utils/password";
 
 const router = Router();
@@ -17,7 +17,7 @@ router.post("/login", async (req, res) => {
   const { username, password }: UserP = req.body;
 
   try {
-    validateLogin({
+    validateUser({
       username,
       password,
     });
@@ -32,7 +32,7 @@ router.post("/login", async (req, res) => {
         .send({ status: "failed", data: "Password is incorrect!" });
 
     const token = sign({ id: user.id }, process.env.TOKEN_SECRET!, {
-      expiresIn: "30s",
+      expiresIn: "15s",
     });
     const refreshToken = sign({ id: user.id }, process.env.REFRESH_SECRET!, {
       expiresIn: "1d",
@@ -91,8 +91,6 @@ router.post("/register", async (req, res) => {
     validateUser({
       username,
       password,
-      created_at,
-      updated_at,
     });
 
     const createdUser = await prisma.user.create({

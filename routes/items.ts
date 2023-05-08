@@ -1,6 +1,8 @@
 import { Router } from "express";
 import Item from "../types/Item";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
+import { validateItem } from "../validation";
+import { ZodError } from "zod";
 
 const router: Router = Router();
 const prisma = new PrismaClient();
@@ -19,9 +21,11 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const { name, stock }: Item = req.body;
   try {
-    const query: Item = await prisma.item.create({
+    const { name, stock }: Item = req.body;
+    validateItem({ name, stock });
+
+    const newItem: Item = await prisma.item.create({
       data: {
         name,
         stock,
@@ -30,10 +34,44 @@ router.post("/", async (req, res) => {
       },
     });
 
-    res.send({ status: "success", data: query });
+    res.send({ status: "success", data: newItem });
   } catch (e) {
+    if (e instanceof ZodError)
+      return res.status(400).send({ status: "failed", data: e.issues });
+
     res.status(500).send({ status: "failed", data: e });
     console.error(e);
+  }
+});
+
+router.put("/:id", async (req, res) => {
+  const id: number = parseInt(req.params.id);
+  const { name, stock }: Item = req.body;
+  const updated_at: Date = new Date();
+
+  try {
+    const updatedItem = await prisma.item.update({
+      where: {
+        id,
+      },
+      data: {
+        name,
+        stock,
+        updated_at,
+      },
+    });
+    res.send({ status: "success", data: updatedItem });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError) {
+      if (e.code === "P2025")
+        return res
+          .status(500)
+          .send({ status: "failed", data: "Data with given id not found" });
+
+      return res.status(500).send({ status: "failed", data: e.meta?.cause });
+    }
+
+    return res.status(500).send({ status: "failed", data: e });
   }
 });
 
@@ -41,10 +79,9 @@ router.get("/:id", async (req, res) => {
   try {
     const id: number = parseInt(req.params.id);
     const item = await prisma.item.findFirst({ where: { id } });
-    if (item == null) {
-      res.status(404).send({ status: "failed", data: "No data" });
-      return;
-    }
+    if (item == null)
+      return res.status(404).send({ status: "failed", data: "No data" });
+
     res.send({ status: "success", data: item });
   } catch (e) {
     res.status(500).send({ status: "failed", data: e });

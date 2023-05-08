@@ -1,18 +1,10 @@
-import { User } from "@prisma/client";
+import { User, Item } from "@prisma/client";
 import { z } from "zod";
 
-export const validateUser = (user: Partial<User>) => {
-  const Schema = z.object({
-    username: z.string().min(6),
-    password: z.string().min(12),
-    created_at: z.date(),
-    updated_at: z.date().default(new Date()),
-  });
+type NewUser = Pick<User, "username" | "password">;
+type NewItem = Pick<Item, "name" | "stock">;
 
-  return Schema.parse(user);
-};
-
-export const validateLogin = (user: Partial<User>) => {
+export const validateUser = (user: NewUser) => {
   const Schema = z.object({
     username: z.string().min(6),
     password: z.string().min(12),
@@ -20,3 +12,21 @@ export const validateLogin = (user: Partial<User>) => {
 
   return Schema.parse(user);
 };
+
+export const validateItem = (item: NewItem) => {
+  const Schema = z.object({
+    name: z.string().min(4),
+    stock: z.number().gte(0),
+  });
+
+  return Schema.parse(item);
+};
+
+// export const validateLogin = (user: NewUser) => {
+//   const Schema = z.object({
+//     username: z.string().min(6),
+//     password: z.string().min(12),
+//   });
+
+//   return Schema.parse(user);
+// };
