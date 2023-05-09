@@ -1,10 +1,22 @@
-import { User, Item } from "@prisma/client";
+import { User, Item, Review } from "@prisma/client";
 import { z } from "zod";
 
-type NewUser = Pick<User, "username" | "password">;
+type NewUser = Pick<User, "username" | "password" | "role">;
+type LoginUser = Pick<User, "username" | "password">;
 type NewItem = Pick<Item, "name" | "stock">;
+type NewReview = Pick<Review, "item_id" | "rating" | "body">;
 
 export const validateUser = (user: NewUser) => {
+  const Schema = z.object({
+    username: z.string().min(6),
+    password: z.string().min(12),
+    role: z.enum(["ADMIN", "SELLER", "USER"]),
+  });
+
+  return Schema.parse(user);
+};
+
+export const validateLogin = (user: LoginUser) => {
   const Schema = z.object({
     username: z.string().min(6),
     password: z.string().min(12),
@@ -22,11 +34,12 @@ export const validateItem = (item: NewItem) => {
   return Schema.parse(item);
 };
 
-// export const validateLogin = (user: NewUser) => {
-//   const Schema = z.object({
-//     username: z.string().min(6),
-//     password: z.string().min(12),
-//   });
+export const validateReview = (review: NewReview) => {
+  const Schema = z.object({
+    item_id: z.number(),
+    rating: z.number().gte(0).lte(5),
+    body: z.string().min(10).max(150),
+  });
 
-//   return Schema.parse(user);
-// };
+  return Schema.parse(review);
+};

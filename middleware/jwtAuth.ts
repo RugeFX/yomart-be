@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { NextFunction, Request, Response } from "express";
 import { JsonWebTokenError, verify } from "jsonwebtoken";
+import DecodedToken from "../types/DecodedToken";
 
 export default async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -12,7 +13,12 @@ export default async (req: Request, res: Response, next: NextFunction) => {
 
     const token = authHeader.split(" ")[1];
 
-    verify(token, process.env.TOKEN_SECRET as string);
+    const { id: userId } = verify(
+      token,
+      process.env.TOKEN_SECRET!
+    ) as DecodedToken;
+
+    req.userId = userId;
     next();
   } catch (e) {
     if (e instanceof JsonWebTokenError)

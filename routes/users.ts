@@ -20,7 +20,7 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const { username, password }: User = req.body;
+  const { username, password, role }: User = req.body;
   const created_at = new Date();
   const updated_at = new Date();
 
@@ -28,12 +28,14 @@ router.post("/", async (req, res) => {
     validateUser({
       username,
       password,
+      role,
     });
 
     const newUser = await prisma.user.create({
       data: {
         username,
         password: await cryptPassword(password),
+        role,
         created_at,
         updated_at,
       },
@@ -41,10 +43,10 @@ router.post("/", async (req, res) => {
 
     res.send({ status: "success", data: newUser });
   } catch (e) {
-    console.error(e);
     if (e instanceof ZodError)
       return res.status(400).send({ status: "failed", data: e.issues });
 
+    console.error(e);
     return res.status(500).send({ status: "failed", data: e });
   }
 });
@@ -75,7 +77,7 @@ router.put("/:id", async (req, res) => {
 
       return res.status(500).send({ status: "failed", data: e.meta?.cause });
     }
-
+    console.error(e);
     return res.status(500).send({ status: "failed", data: e });
   }
 });
@@ -83,7 +85,10 @@ router.put("/:id", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const user = await prisma.user.findFirst({ where: { id } });
+    const user = await prisma.user.findFirst({
+      where: { id },
+      include: { items: true, reviews: true },
+    });
     if (user == null) {
       res.status(404).send({ status: "failed", data: "No data" });
       return;
@@ -104,6 +109,15 @@ router.delete("/:id", async (req, res) => {
     });
     res.send({ status: "success", data: query });
   } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError) {
+      if (e.code === "P2025")
+        return res
+          .status(404)
+          .send({ status: "failed", data: "Record to delete not found" });
+
+      return res.status(500).send({ status: "failed", data: e.meta?.cause });
+    }
+
     res.status(500).send({ status: "failed", data: e });
   }
 });

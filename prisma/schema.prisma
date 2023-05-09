@@ -10,23 +10,48 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  USER
+  SELLER
+  ADMIN
+}
+
 model User {
   id         String   @id @default(uuid())
   username   String   @unique
   password   String
+  role       Role
   created_at DateTime @default(now())
   updated_at DateTime
+  items      Item[]
+  reviews    Review[]
 }
 
 model Item {
   id         Int      @id @default(autoincrement())
+  seller     User     @relation(fields: [seller_id], references: [id])
+  seller_id  String
   name       String
   stock      Int
+  created_at DateTime @default(now())
+  updated_at DateTime
+  reviews    Review[]
+}
+
+model Review {
+  id         Int      @id @default(autoincrement())
+  user       User     @relation(fields: [user_id], references: [id])
+  user_id    String
+  item       Item     @relation(fields: [item_id], references: [id])
+  item_id    Int
+  rating     Int
+  body       String
   created_at DateTime @default(now())
   updated_at DateTime
 }
 
 model RefreshToken {
-  id    Int    @id @default(autoincrement())
-  token String @unique
+  id         Int      @id @default(autoincrement())
+  token      String   @unique
+  expires_at DateTime
 }

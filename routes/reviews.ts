@@ -1,24 +1,23 @@
+import { Prisma, PrismaClient, Review } from "@prisma/client";
 import { Router } from "express";
-import Item from "../types/Item";
-import { Prisma, PrismaClient } from "@prisma/client";
-import { validateItem } from "../validation";
 import { ZodError } from "zod";
+import { validateReview } from "../validation";
 
 const router: Router = Router();
 const prisma = new PrismaClient();
 
 router.get("/", async (req, res) => {
   try {
-    const items: Item[] = await prisma.item.findMany({
+    const reviews: Review[] = await prisma.review.findMany({
       include: {
-        seller: true,
-        reviews: { select: { rating: true } },
+        item: true,
+        user: true,
       },
     });
-    if (items.length < 1)
+    if (reviews.length < 1)
       return res.status(404).send({ status: "failed", data: "No data" });
 
-    res.send({ status: "success", data: items });
+    res.send({ status: "success", data: reviews });
   } catch (e) {
     res.status(500).send({ status: "failed", data: e });
   }
@@ -26,22 +25,23 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { name, stock }: Item = req.body;
+    const { item_id, rating, body }: Review = req.body;
     const { userId } = req;
 
-    validateItem({ name, stock });
+    validateReview({ item_id, rating, body });
 
-    const newItem: Item = await prisma.item.create({
+    const newReview: Review = await prisma.review.create({
       data: {
-        name,
-        stock,
-        seller: { connect: { id: userId } },
+        user: { connect: { id: userId } },
+        item: { connect: { id: item_id } },
+        rating,
+        body,
         created_at: new Date(),
         updated_at: new Date(),
       },
     });
 
-    res.send({ status: "success", data: newItem });
+    res.send({ status: "success", data: newReview });
   } catch (e) {
     if (e instanceof ZodError)
       return res.status(400).send({ status: "failed", data: e.issues });
@@ -56,21 +56,20 @@ router.post("/", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const id: number = parseInt(req.params.id);
-  const { name, stock }: Item = req.body;
-  const updated_at: Date = new Date();
+  const { rating, body }: Review = req.body;
 
   try {
-    const updatedItem = await prisma.item.update({
+    const updatedReview = await prisma.review.update({
       where: {
         id,
       },
       data: {
-        name,
-        stock,
-        updated_at,
+        rating,
+        body,
+        updated_at: new Date(),
       },
     });
-    res.send({ status: "success", data: updatedItem });
+    res.send({ status: "success", data: updatedReview });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025")
@@ -88,17 +87,17 @@ router.put("/:id", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const item = await prisma.item.findFirst({
+    const review = await prisma.review.findFirst({
       where: { id },
       include: {
-        seller: true,
-        reviews: true,
+        item: true,
+        user: true,
       },
     });
-    if (item == null)
+    if (review == null)
       return res.status(404).send({ status: "failed", data: "No data" });
 
-    res.send({ status: "success", data: item });
+    res.send({ status: "success", data: review });
   } catch (e) {
     res.status(500).send({ status: "failed", data: e });
   }
@@ -107,12 +106,12 @@ router.get("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   const id = parseInt(req.params.id);
   try {
-    const query = await prisma.item.delete({
+    const deletedReview = await prisma.review.delete({
       where: {
         id,
       },
     });
-    res.send({ status: "success", data: query });
+    res.send({ status: "success", data: deletedReview });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025")

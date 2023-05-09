@@ -3,7 +3,7 @@ import { PrismaClient, Prisma, User as UserP } from "@prisma/client";
 import { Router } from "express";
 import { ZodError } from "zod";
 import { JsonWebTokenError, sign, verify } from "jsonwebtoken";
-import { validateUser } from "../validation";
+import { validateLogin, validateUser } from "../validation";
 import { comparePassword, cryptPassword } from "../utils/password";
 
 const router = Router();
@@ -17,7 +17,7 @@ router.post("/login", async (req, res) => {
   const { username, password }: UserP = req.body;
 
   try {
-    validateUser({
+    validateLogin({
       username,
       password,
     });
@@ -38,7 +38,12 @@ router.post("/login", async (req, res) => {
       expiresIn: "1d",
     });
 
-    await prisma.refreshToken.create({ data: { token: refreshToken } });
+    const tomorrow = new Date(Date.now() + 1);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    await prisma.refreshToken.create({
+      data: { token: refreshToken, expires_at: tomorrow },
+    });
 
     return res.send({
       status: "success",
@@ -84,6 +89,7 @@ router.post("/token", async (req, res) => {
 
 router.post("/register", async (req, res) => {
   const { username, password }: UserP = req.body;
+  const role = "USER";
   const created_at = new Date();
   const updated_at = new Date();
 
@@ -91,12 +97,14 @@ router.post("/register", async (req, res) => {
     validateUser({
       username,
       password,
+      role,
     });
 
     const createdUser = await prisma.user.create({
       data: {
         username,
         password: await cryptPassword(password),
+        role,
         created_at,
         updated_at,
       },
