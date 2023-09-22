@@ -1,16 +1,17 @@
-import { User, Item, Review } from "@prisma/client";
+import { User, Item, Review, Role, CartItem } from "@prisma/client";
 import { z } from "zod";
 
 type NewUser = Pick<User, "username" | "password" | "role">;
 type LoginUser = Pick<User, "username" | "password">;
 type NewItem = Pick<Item, "name" | "stock">;
 type NewReview = Pick<Review, "item_id" | "rating" | "body">;
+type NewCartItem = Pick<CartItem, "item_id" | "cart_id">;
 
 export const validateUser = (user: NewUser) => {
   const Schema = z.object({
     username: z.string().min(6),
     password: z.string().min(12),
-    role: z.enum(["ADMIN", "SELLER", "USER"]),
+    role: z.nativeEnum(Role),
   });
 
   return Schema.parse(user);
@@ -42,4 +43,13 @@ export const validateReview = (review: NewReview) => {
   });
 
   return Schema.parse(review);
+};
+
+export const validateCartItem = (item: NewCartItem) => {
+  const Schema = z.object({
+    cart_id: z.number(),
+    item_id: z.number(),
+  });
+
+  return Schema.parse(item);
 };

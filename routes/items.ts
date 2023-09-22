@@ -1,47 +1,45 @@
 import { Router } from "express";
-import Item from "../types/Item";
-import { Prisma, PrismaClient } from "@prisma/client";
-import { validateItem } from "../validation";
+import { Prisma, Item } from "@prisma/client";
 import { ZodError } from "zod";
+import ItemService from "../services/ItemService";
+import jwtAuth from "../middleware/jwtAuth";
 
 const router: Router = Router();
-const prisma = new PrismaClient();
+const itemService = new ItemService();
 
 router.get("/", async (req, res) => {
   try {
-    const items: Item[] = await prisma.item.findMany({
-      include: {
-        seller: true,
-        reviews: { select: { rating: true } },
-      },
-    });
+    const items: Item[] = await itemService.getAll();
+
     if (items.length < 1)
       return res.status(404).send({ status: "failed", data: "No data" });
 
-    res.send({ status: "success", data: items });
+    return res.send({ status: "success", data: items });
   } catch (e) {
-    res.status(500).send({ status: "failed", data: e });
+    return res.status(500).send({ status: "failed", data: e });
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", jwtAuth, async (req, res) => {
   try {
     const { name, stock }: Item = req.body;
-    const { userId } = req;
+    const {
+      user: { id: userId, role },
+    } = req;
 
-    validateItem({ name, stock });
+    if (role === "USER")
+      return res.status(403).send({
+        status: "failed",
+        data: "You are forbidden to do this action.",
+      });
 
-    const newItem: Item = await prisma.item.create({
-      data: {
-        name,
-        stock,
-        seller: { connect: { id: userId } },
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
+    const newItem: Item = await itemService.create({
+      name,
+      stock,
+      seller_id: userId,
     });
 
-    res.send({ status: "success", data: newItem });
+    return res.send({ status: "success", data: newItem });
   } catch (e) {
     if (e instanceof ZodError)
       return res.status(400).send({ status: "failed", data: e.issues });
@@ -49,34 +47,39 @@ router.post("/", async (req, res) => {
     if (e instanceof Prisma.PrismaClientValidationError)
       return res.status(400).send({ status: "failed", data: e.message });
 
-    res.status(500).send({ status: "failed", data: e });
     console.error(e);
+    return res.status(500).send({ status: "failed", data: e });
   }
 });
 
-router.put("/:id", async (req, res) => {
-  const id: number = parseInt(req.params.id);
+router.put("/:id", jwtAuth, async (req, res) => {
+  const id: number = Number(req.params.id);
   const { name, stock }: Item = req.body;
-  const updated_at: Date = new Date();
 
   try {
-    const updatedItem = await prisma.item.update({
-      where: {
+    const item = await itemService.getById(id);
+
+    const {
+      user: { id: userId, role },
+    } = req;
+    if (item && (item.seller_id === userId || role === "ADMIN")) {
+      const updatedItem = await itemService.updateById({
         id,
-      },
-      data: {
         name,
         stock,
-        updated_at,
-      },
-    });
-    res.send({ status: "success", data: updatedItem });
+      });
+      return res.send({ status: "success", data: updatedItem });
+    }
+
+    return res
+      .status(403)
+      .send({ status: "failed", data: "You're not the owner of this record." });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025")
         return res
           .status(500)
-          .send({ status: "failed", data: "Data with given id not found" });
+          .send({ status: "failed", data: "Record with given id not found" });
 
       return res.status(500).send({ status: "failed", data: e.meta?.cause });
     }
@@ -87,32 +90,35 @@ router.put("/:id", async (req, res) => {
 
 router.get("/:id", async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
-    const item = await prisma.item.findFirst({
-      where: { id },
-      include: {
-        seller: true,
-        reviews: true,
-      },
-    });
+    const id = Number(req.params.id);
+    const item = await itemService.getById(id);
+
     if (item == null)
       return res.status(404).send({ status: "failed", data: "No data" });
 
-    res.send({ status: "success", data: item });
+    return res.send({ status: "success", data: item });
   } catch (e) {
-    res.status(500).send({ status: "failed", data: e });
+    return res.status(500).send({ status: "failed", data: e });
   }
 });
 
-router.delete("/:id", async (req, res) => {
-  const id = parseInt(req.params.id);
+router.delete("/:id", jwtAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const {
+    user: { id: userId, role },
+  } = req;
+
   try {
-    const query = await prisma.item.delete({
-      where: {
-        id,
-      },
-    });
-    res.send({ status: "success", data: query });
+    const item = await itemService.getById(id);
+
+    if (item && (item.seller_id === userId || role === "ADMIN")) {
+      const deletedItem = await itemService.deleteById(id);
+      return res.send({ status: "success", data: deletedItem });
+    }
+
+    return res
+      .status(403)
+      .send({ status: "failed", data: "You're not the owner of this record." });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025")
@@ -123,7 +129,7 @@ router.delete("/:id", async (req, res) => {
       return res.status(500).send({ status: "failed", data: e.meta?.cause });
     }
 
-    res.status(500).send({ status: "failed", data: e });
+    return res.status(500).send({ status: "failed", data: e });
   }
 });
 

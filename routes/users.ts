@@ -1,47 +1,36 @@
 import { Router } from "express";
-import { Prisma, PrismaClient, User } from "@prisma/client";
+import { Prisma, User } from "@prisma/client";
 import { ZodError } from "zod";
-import { validateUser } from "../validation";
 import { cryptPassword } from "../utils/password";
+import UserService from "../services/UserService";
 
 const router: Router = Router();
-const prisma = new PrismaClient();
+const userService = new UserService();
 
 router.get("/", async (req, res) => {
   try {
-    const users: User[] = await prisma.user.findMany();
+    const users: User[] = await userService.getAll();
+
     if (users.length < 1)
       return res.status(404).send({ status: "failed", data: null });
 
-    res.send({ status: "success", data: users });
+    return res.send({ status: "success", data: users });
   } catch (e) {
-    res.status(500).send({ status: "failed", data: e });
+    return res.status(500).send({ status: "failed", data: e });
   }
 });
 
 router.post("/", async (req, res) => {
   const { username, password, role }: User = req.body;
-  const created_at = new Date();
-  const updated_at = new Date();
 
   try {
-    validateUser({
+    const newUser = await userService.create({
       username,
-      password,
+      password: await cryptPassword(password),
       role,
     });
 
-    const newUser = await prisma.user.create({
-      data: {
-        username,
-        password: await cryptPassword(password),
-        role,
-        created_at,
-        updated_at,
-      },
-    });
-
-    res.send({ status: "success", data: newUser });
+    return res.send({ status: "success", data: newUser });
   } catch (e) {
     if (e instanceof ZodError)
       return res.status(400).send({ status: "failed", data: e.issues });
@@ -54,20 +43,14 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
   const { username, password }: User = req.body;
-  const updated_at: Date = new Date();
 
   try {
-    const updatedUser = await prisma.user.update({
-      where: {
-        id,
-      },
-      data: {
-        username,
-        password,
-        updated_at,
-      },
+    const updatedUser = await userService.updateById({
+      id,
+      username,
+      password,
     });
-    res.send({ status: "success", data: updatedUser });
+    return res.send({ status: "success", data: updatedUser });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025")
@@ -84,30 +67,22 @@ router.put("/:id", async (req, res) => {
 
 router.get("/:id", async (req, res) => {
   try {
-    const { id } = req.params;
-    const user = await prisma.user.findFirst({
-      where: { id },
-      include: { items: true, reviews: true },
-    });
-    if (user == null) {
-      res.status(404).send({ status: "failed", data: "No data" });
-      return;
-    }
-    res.send({ status: "success", data: user });
+    const user = await userService.getById(req.params.id);
+
+    if (user == null)
+      return res.status(404).send({ status: "failed", data: "No data" });
+
+    return res.send({ status: "success", data: user });
   } catch (e) {
-    res.status(500).send({ status: "failed", data: e });
+    return res.status(500).send({ status: "failed", data: e });
   }
 });
 
 router.delete("/:id", async (req, res) => {
   try {
-    const { id } = req.params;
-    const query = await prisma.user.delete({
-      where: {
-        id,
-      },
-    });
-    res.send({ status: "success", data: query });
+    const deletedUser = await userService.deleteById(req.params.id);
+
+    return res.send({ status: "success", data: deletedUser });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025")
@@ -118,7 +93,7 @@ router.delete("/:id", async (req, res) => {
       return res.status(500).send({ status: "failed", data: e.meta?.cause });
     }
 
-    res.status(500).send({ status: "failed", data: e });
+    return res.status(500).send({ status: "failed", data: e });
   }
 });
 

@@ -1,17 +1,15 @@
 import "dotenv/config";
-import { PrismaClient, Prisma, User as UserP } from "@prisma/client";
+import { PrismaClient, Prisma, User as UserP, Role } from "@prisma/client";
 import { Router } from "express";
 import { ZodError } from "zod";
 import { JsonWebTokenError, sign, verify } from "jsonwebtoken";
 import { validateLogin, validateUser } from "../validation";
 import { comparePassword, cryptPassword } from "../utils/password";
+import jwtAuth from "../middleware/jwtAuth";
+import DecodedToken from "../types/DecodedToken";
 
 const router = Router();
 const prisma = new PrismaClient();
-
-interface DecodedToken {
-  id: string;
-}
 
 router.post("/login", async (req, res) => {
   const { username, password }: UserP = req.body;
@@ -31,9 +29,7 @@ router.post("/login", async (req, res) => {
         .status(400)
         .send({ status: "failed", data: "Password is incorrect!" });
 
-    const token = sign({ id: user.id }, process.env.TOKEN_SECRET!, {
-      expiresIn: "15s",
-    });
+    const token = createAccessToken(user.id, user.role);
     const refreshToken = sign({ id: user.id }, process.env.REFRESH_SECRET!, {
       expiresIn: "1d",
     });
@@ -71,9 +67,7 @@ router.post("/token", async (req, res) => {
       return res.status(403).send({ status: "failed", data: "Invalid token" });
 
     const decoded = verify(token, process.env.REFRESH_SECRET!) as DecodedToken;
-    const accessToken = sign({ id: decoded.id }, process.env.TOKEN_SECRET!, {
-      expiresIn: "30s",
-    });
+    const accessToken = createAccessToken(decoded.id, decoded.role);
 
     return res.status(200).send({ status: "success", data: accessToken });
   } catch (e) {
@@ -105,16 +99,15 @@ router.post("/register", async (req, res) => {
         username,
         password: await cryptPassword(password),
         role,
+        cart: { create: { items: undefined } },
         created_at,
         updated_at,
       },
     });
 
-    const token = sign({ id: createdUser.id }, process.env.TOKEN_SECRET!, {
-      expiresIn: "10000",
-    });
+    const token = createAccessToken(createdUser.id, createdUser.role);
 
-    res.send({ status: "success", data: token });
+    return res.send({ status: "success", data: token });
   } catch (e) {
     console.error(e);
     if (e instanceof ZodError)
@@ -124,7 +117,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
-router.delete("/logout", async (req, res) => {
+router.delete("/logout", jwtAuth, async (req, res) => {
   try {
     const token: string | null = req.body.refreshToken;
     if (!token)
@@ -142,8 +135,15 @@ router.delete("/logout", async (req, res) => {
     if (e instanceof Prisma.PrismaClientKnownRequestError)
       return res.status(400).send({ status: "failed", data: e.meta?.cause });
 
+    console.error(e);
     return res.status(500).send({ status: "failed", data: e });
   }
 });
+
+function createAccessToken(id: string, role: Role) {
+  return sign({ id, role }, process.env.TOKEN_SECRET!, {
+    expiresIn: "15s",
+  });
+}
 
 export default router;

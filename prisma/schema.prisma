@@ -17,37 +17,61 @@ enum Role {
 }
 
 model User {
-  id         String   @id @default(uuid())
+  id         String   @id @default(cuid())
   username   String   @unique
   password   String
-  role       Role
   created_at DateTime @default(now())
-  updated_at DateTime
-  items      Item[]
-  reviews    Review[]
+  updated_at DateTime @default(now())
+
+  role Role @default(USER)
+
+  items   Item[]
+  reviews Review[]
+  cart    Cart?
 }
 
 model Item {
   id         Int      @id @default(autoincrement())
-  seller     User     @relation(fields: [seller_id], references: [id])
   seller_id  String
   name       String
   stock      Int
   created_at DateTime @default(now())
-  updated_at DateTime
-  reviews    Review[]
+  updated_at DateTime @default(now())
+
+  reviews   Review[]
+  cart_item CartItem?
+  seller    User      @relation(fields: [seller_id], references: [id], onDelete: Cascade)
 }
 
 model Review {
   id         Int      @id @default(autoincrement())
-  user       User     @relation(fields: [user_id], references: [id])
   user_id    String
-  item       Item     @relation(fields: [item_id], references: [id])
   item_id    Int
   rating     Int
   body       String
   created_at DateTime @default(now())
-  updated_at DateTime
+  updated_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  item Item @relation(fields: [item_id], references: [id], onDelete: Cascade)
+}
+
+model Cart {
+  id      Int    @id @default(autoincrement())
+  user_id String @unique
+
+  items CartItem[]
+  user  User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model CartItem {
+  id       Int @id @default(autoincrement())
+  quantity Int
+  cart_id  Int
+  item_id  Int @unique
+
+  cart Cart @relation(fields: [cart_id], references: [id], onDelete: Cascade)
+  item Item @relation(fields: [item_id], references: [id], onDelete: Cascade)
 }
 
 model RefreshToken {

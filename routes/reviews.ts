@@ -26,7 +26,9 @@ router.get("/", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const { item_id, rating, body }: Review = req.body;
-    const { userId } = req;
+    const {
+      user: { id: userId, role },
+    } = req;
 
     validateReview({ item_id, rating, body });
 
