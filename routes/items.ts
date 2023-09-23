@@ -3,16 +3,17 @@ import { Prisma, Item } from "@prisma/client";
 import { ZodError } from "zod";
 import ItemService from "../services/ItemService";
 import jwtAuth from "../middleware/jwtAuth";
+import { handlePrismaClientError } from "../utils/errorHandler";
+import dbClient from "../config/dbClient";
 
 const router: Router = Router();
-const itemService = new ItemService();
+const itemService = new ItemService(dbClient);
 
 router.get("/", async (req, res) => {
   try {
     const items: Item[] = await itemService.getAll();
 
-    if (items.length < 1)
-      return res.status(404).send({ status: "failed", data: "No data" });
+    if (items.length < 1) return res.status(404).send({ status: "failed", data: "No data" });
 
     return res.send({ status: "success", data: items });
   } catch (e) {
@@ -23,9 +24,7 @@ router.get("/", async (req, res) => {
 router.post("/", jwtAuth, async (req, res) => {
   try {
     const { name, stock }: Item = req.body;
-    const {
-      user: { id: userId, role },
-    } = req;
+    const { id: userId, role } = req.user;
 
     if (role === "USER")
       return res.status(403).send({
@@ -41,8 +40,7 @@ router.post("/", jwtAuth, async (req, res) => {
 
     return res.send({ status: "success", data: newItem });
   } catch (e) {
-    if (e instanceof ZodError)
-      return res.status(400).send({ status: "failed", data: e.issues });
+    if (e instanceof ZodError) return res.status(400).send({ status: "failed", data: e.issues });
 
     if (e instanceof Prisma.PrismaClientValidationError)
       return res.status(400).send({ status: "failed", data: e.message });
@@ -59,9 +57,7 @@ router.put("/:id", jwtAuth, async (req, res) => {
   try {
     const item = await itemService.getById(id);
 
-    const {
-      user: { id: userId, role },
-    } = req;
+    const { id: userId, role } = req.user;
     if (item && (item.seller_id === userId || role === "ADMIN")) {
       const updatedItem = await itemService.updateById({
         id,
@@ -71,17 +67,11 @@ router.put("/:id", jwtAuth, async (req, res) => {
       return res.send({ status: "success", data: updatedItem });
     }
 
-    return res
-      .status(403)
-      .send({ status: "failed", data: "You're not the owner of this record." });
+    return res.status(403).send({ status: "failed", data: "You're not the owner of this record." });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
-      if (e.code === "P2025")
-        return res
-          .status(500)
-          .send({ status: "failed", data: "Record with given id not found" });
-
-      return res.status(500).send({ status: "failed", data: e.meta?.cause });
+      const error = handlePrismaClientError(e);
+      return res.status(error.statusCode).send(error.response);
     }
 
     return res.status(500).send({ status: "failed", data: e });
@@ -93,8 +83,7 @@ router.get("/:id", async (req, res) => {
     const id = Number(req.params.id);
     const item = await itemService.getById(id);
 
-    if (item == null)
-      return res.status(404).send({ status: "failed", data: "No data" });
+    if (item == null) return res.status(404).send({ status: "failed", data: "No data" });
 
     return res.send({ status: "success", data: item });
   } catch (e) {
@@ -104,9 +93,7 @@ router.get("/:id", async (req, res) => {
 
 router.delete("/:id", jwtAuth, async (req, res) => {
   const id = Number(req.params.id);
-  const {
-    user: { id: userId, role },
-  } = req;
+  const { id: userId, role } = req.user;
 
   try {
     const item = await itemService.getById(id);
@@ -116,17 +103,11 @@ router.delete("/:id", jwtAuth, async (req, res) => {
       return res.send({ status: "success", data: deletedItem });
     }
 
-    return res
-      .status(403)
-      .send({ status: "failed", data: "You're not the owner of this record." });
+    return res.status(403).send({ status: "failed", data: "You're not the owner of this record." });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
-      if (e.code === "P2025")
-        return res
-          .status(404)
-          .send({ status: "failed", data: "Record to delete not found" });
-
-      return res.status(500).send({ status: "failed", data: e.meta?.cause });
+      const error = handlePrismaClientError(e);
+      return res.status(error.statusCode).send(error.response);
     }
 
     return res.status(500).send({ status: "failed", data: e });

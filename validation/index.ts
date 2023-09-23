@@ -1,4 +1,4 @@
-import { User, Item, Review, Role, CartItem } from "@prisma/client";
+import { type User, type Item, type Review, type CartItem, Role } from "@prisma/client";
 import { z } from "zod";
 
 type NewUser = Pick<User, "username" | "password" | "role">;

@@ -1,13 +1,13 @@
-import { PrismaClient, Item } from "@prisma/client";
+import { PrismaClient, Prisma, type Item } from "@prisma/client";
 import { validateItem } from "../validation";
 
 type NewItem = Pick<Item, "name" | "stock" | "seller_id">;
 
 class ItemService {
-  public client: PrismaClient;
+  private client: PrismaClient;
 
-  constructor() {
-    this.client = new PrismaClient();
+  constructor(client: PrismaClient) {
+    this.client = client;
   }
 
   async getAll(): Promise<Item[]> {
@@ -27,6 +27,14 @@ class ItemService {
         reviews: true,
       },
     });
+  }
+
+  async getManyWhere(where: Prisma.ItemWhereInput): Promise<Item[]> {
+    return this.client.item.findMany({ where });
+  }
+
+  async getFirstWhere(where: Prisma.ItemWhereInput): Promise<Item | null> {
+    return this.client.item.findFirst({ where });
   }
 
   async create(item: NewItem): Promise<Item> {

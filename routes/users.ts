@@ -3,16 +3,16 @@ import { Prisma, User } from "@prisma/client";
 import { ZodError } from "zod";
 import { cryptPassword } from "../utils/password";
 import UserService from "../services/UserService";
+import dbClient from "../config/dbClient";
 
 const router: Router = Router();
-const userService = new UserService();
+const userService = new UserService(dbClient);
 
 router.get("/", async (req, res) => {
   try {
     const users: User[] = await userService.getAll();
 
-    if (users.length < 1)
-      return res.status(404).send({ status: "failed", data: null });
+    if (users.length < 1) return res.status(404).send({ status: "failed", data: null });
 
     return res.send({ status: "success", data: users });
   } catch (e) {
@@ -32,8 +32,7 @@ router.post("/", async (req, res) => {
 
     return res.send({ status: "success", data: newUser });
   } catch (e) {
-    if (e instanceof ZodError)
-      return res.status(400).send({ status: "failed", data: e.issues });
+    if (e instanceof ZodError) return res.status(400).send({ status: "failed", data: e.issues });
 
     console.error(e);
     return res.status(500).send({ status: "failed", data: e });
@@ -54,9 +53,7 @@ router.put("/:id", async (req, res) => {
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025")
-        return res
-          .status(500)
-          .send({ status: "failed", data: "Data with given id not found" });
+        return res.status(500).send({ status: "failed", data: "Data with given id not found" });
 
       return res.status(500).send({ status: "failed", data: e.meta?.cause });
     }
@@ -69,8 +66,7 @@ router.get("/:id", async (req, res) => {
   try {
     const user = await userService.getById(req.params.id);
 
-    if (user == null)
-      return res.status(404).send({ status: "failed", data: "No data" });
+    if (user == null) return res.status(404).send({ status: "failed", data: "No data" });
 
     return res.send({ status: "success", data: user });
   } catch (e) {
@@ -86,9 +82,7 @@ router.delete("/:id", async (req, res) => {
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2025")
-        return res
-          .status(404)
-          .send({ status: "failed", data: "Record to delete not found" });
+        return res.status(404).send({ status: "failed", data: "Record to delete not found" });
 
       return res.status(500).send({ status: "failed", data: e.meta?.cause });
     }

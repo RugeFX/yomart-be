@@ -1,4 +1,4 @@
-import { PrismaClient, User } from "@prisma/client";
+import { Prisma, PrismaClient, type User } from "@prisma/client";
 import { validateUser } from "../validation";
 
 type NewUser = Pick<User, "username" | "password" | "role">;
@@ -6,8 +6,8 @@ type NewUser = Pick<User, "username" | "password" | "role">;
 class UserService {
   private client: PrismaClient;
 
-  constructor() {
-    this.client = new PrismaClient();
+  constructor(client: PrismaClient) {
+    this.client = client;
   }
 
   async getAll(): Promise<User[]> {
@@ -16,6 +16,14 @@ class UserService {
 
   async getById(id: string): Promise<User | null> {
     return this.client.user.findUnique({ where: { id } });
+  }
+
+  async getManyWhere(where: Prisma.UserWhereInput): Promise<User[]> {
+    return this.client.user.findMany({ where });
+  }
+
+  async getFirstWhere(where: Prisma.UserWhereInput): Promise<User | null> {
+    return this.client.user.findFirst({ where });
   }
 
   async create(user: NewUser): Promise<User> {
